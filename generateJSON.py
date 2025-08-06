@@ -8,9 +8,24 @@ from dotenv import load_dotenv
 
 _ = load_dotenv()
 api_key = os.getenv("API_KEY")
-testing = True
+
+blacklist = [
+    "ceginfo.hu",
+    "ceginformacio.hu",
+    "icegtar.hu",
+    "companywall.hu",
+    "hu.linkedin.com",
+    "mkik.hu",
+    "status.nyeremenyjatek.donestudio.hu",
+    "webshop.opten.hu",
+    "waze.com",
+    "linkedin.com",
+    "nemzeticegtar.hu",
+    "hu.wikipedia.org"
+]
 
 def getWebsite(name: str) -> str:
+    maxResults = 5
     response = requests.get(
       "https://api.search.brave.com/res/v1/web/search",
       headers={
@@ -22,18 +37,21 @@ def getWebsite(name: str) -> str:
         "q": name,
         "country": "ALL",
         "search_lang": "hu",
-        "count": "1",
+        "count": str(maxResults),
         "safesearch": "off",
         "spellcheck": "false",
         "result_filter": "web"
       },
     ).json()
+    results = response.get("web", {}).get("results", [])
 
-    hostname = response["web"]["results"][0]["meta_url"]["hostname"]
-    print(hostname)
-
-    time.sleep(1)
-    return hostname
+    for entry in results:
+        hostname = entry["meta_url"]["hostname"].replace("www.", "", 1)
+        if hostname not in blacklist:
+            print(hostname)
+            time.sleep(1)
+            return hostname
+    return ""
 
 def addWebsites(
     df: pd.DataFrame,
@@ -54,18 +72,17 @@ def addWebsites(
             df.loc[empty_idx, "website"] = df.loc[empty_idx, "name"].apply(getWebsite)
 
     df.to_json("withSite.json", orient="records")
+
 def setupJSON() -> None:
     partners = pd.read_json("partners.json", orient="records")
-        
     partners = partners.drop(['status', 'sumTopicsCount', 'departmentTopicsCount', 'isPremium'], axis=1)
     addWebsites(partners)
 
 def main():
-    #setupJSON()
+    setupJSON()
     withWebsite = pd.read_json("withSite.json", orient="records")
 
-    fasz = 3        
-    addWebsites(withWebsite, True, fasz)
+    addWebsites(withWebsite, True)
 
 if __name__ == "__main__":
     main()   
